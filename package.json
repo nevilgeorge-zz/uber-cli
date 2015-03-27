@@ -1,0 +1,26 @@
+{
+  "name": "uber-cli",
+  "version": "1.0.0",
+  "description": "CLI to request Ubers",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nevilgeorge/uber-cli.git"
+  },
+  "keywords": [
+    "uber",
+    "cli"
+  ],
+  "author": "Nevil George",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/nevilgeorge/uber-cli/issues"
+  },
+  "homepage": "https://github.com/nevilgeorge/uber-cli",
+  "dependencies": {
+    "commander": "^2.7.1"
+  }
+}
