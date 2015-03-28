@@ -7,14 +7,19 @@ var program = require('commander'),
 	pkg = require(path.join(__dirname, 'package.json')),
 	chalk = require('chalk'),
 	inquirer = require('inquirer'),
-	fs = require('fs');
+	fs = require('fs'),
+	request = require('request'),
+	Uber = require('node-uber'),
+	open = require('open'),
+	_ = require('underscore'),
+	auth = require(path.join(__dirname, 'auth.js'));
 
 // variables
 var emphasize = chalk.green.bgBlue;
-var authList = [
+var loginList = [
 	{
 		type: 'list',
-		message: 'Select how you would like to login to your Uber account.',
+		message: emphasize('Select how you would like to login to your Uber account.'),
 		name: 'authMethod',
 		choices: [
 			'Email',
@@ -26,21 +31,31 @@ var questions = [
 	{
 		type: 'input',
 		name: 'email',
-		message: 'Please enter login email address.'
+		message: emphasize('Please enter login email address:')
 	}, 
 	{
 		type: 'password',
 		name: 'password',
-		message: 'Please enter your password.'
+		message: emphasize('Please enter your password:')
+	}
+];
+var authList = [
+	{
+		type: 'input',
+		name: 'authCode',
+		message: emphasize('Please enter your authorization code:')
 	}
 ];
 
-// functions
+var uber = new Uber(auth);
 
+// functions
+// check whether uberconfig file exists 
 function doesFileExist() {
 	return fs.existsSync('.uberconfig.json');
 }
 
+// read JSON information from uberconfig file
 function readFromFile() {
 	fs.readFile('.uberconfig.json', {encoding: 'utf8'}, function(err, data) {
 		var contents = JSON.parse(data);
@@ -48,6 +63,7 @@ function readFromFile() {
 	});
 }
 
+// write answers to JSON file
 function writeToFile(answers) {
 	fs.writeFile('.uberconfig.json', JSON.stringify(answers), function(err) {
 		if (err) {
@@ -55,6 +71,30 @@ function writeToFile(answers) {
 		}
 	});
 }
+
+// handle authentication using node-uber API wrapper
+function handleAuthentication() {
+	var authUrl = uber.getAuthorizeUrl(['request']);
+	open(authUrl);
+}
+
+function handleAuthorization(code, callback) {
+	uber.authorization({ authorization_code: code}, function(err, access_token, refresh_token) {
+		if (err) {
+			console.log(err);
+		} else {
+			var result = {
+				access: access_token,
+				refresh: refresh_token
+			};
+			callback(result);
+		}
+	});
+}
+
+// uber.authorization(['profile'], function(data) {
+// 	// console.log(data);
+// });
 
 program
 	.version(pkg.version)
@@ -64,14 +104,22 @@ program
 	.parse(process.argv);
 
 if (!doesFileExist()) {
-	inquirer.prompt(authList, function(answer) {
+	inquirer.prompt(loginList, function(answer) {
 		if (answer.authMethod === 'Email') {
 			inquirer.prompt(questions, function(answers) {
-				console.log(answers);
-				writeToFile(answers);
+				var obj = answers;
+				handleAuthentication();
+				inquirer.prompt(authList, function(answer) {
+					var tokens = handleAuthorization(answer.authCode, function(result) {
+						var objToWrite = _.extend(obj, result);
+						console.log(objToWrite);
+						writeToFile(objToWrite);
+					});
+				});
 			});
 		}
 	});
 } else {
 	readFromFile();
 }
+

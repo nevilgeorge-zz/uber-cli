@@ -26,6 +26,11 @@
   "dependencies": {
     "chalk": "^1.0.0",
     "commander": "^2.7.1",
-    "inquirer": "^0.8.2"
+    "inquirer": "^0.8.2",
+    "node-uber": "0.0.4",
+    "open": "0.0.5",
+    "request": "^2.54.0",
+    "requests": "0.0.1",
+    "underscore": "^1.8.2"
   }
 }
