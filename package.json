@@ -24,6 +24,8 @@
   },
   "homepage": "https://github.com/nevilgeorge/uber-cli",
   "dependencies": {
-    "commander": "^2.7.1"
+    "chalk": "^1.0.0",
+    "commander": "^2.7.1",
+    "inquirer": "^0.8.2"
   }
 }
