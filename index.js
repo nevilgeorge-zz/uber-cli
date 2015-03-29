@@ -44,7 +44,7 @@ var authList = [
 	{
 		type: 'input',
 		name: 'authCode',
-		message: emphasize('Please enter your authorization code:')
+		message: emphasize('Please enter the authorization code that just opened in your browser:')
 	}
 ];
 
@@ -76,6 +76,7 @@ function writeToFile(answers) {
 // handle authentication using node-uber API wrapper
 function handleAuthentication() {
 	var authUrl = uber.getAuthorizeUrl(['request']);
+	console.log(authUrl);
 	open(authUrl);
 }
 
@@ -91,10 +92,6 @@ function handleAuthorization(code, callback) {
 			callback(result);
 		}
 	});
-}
-
-function requestRide() {
-	request.get('https://sandbox-api.uber.com/v1/requests?latitude=42.0586&longitude=-87.6845')
 }
 
 program
@@ -175,18 +172,31 @@ async.waterfall([
 		{
 			type: 'list',
 			name: 'vehicle',
-			message: 'The following cars are in your area. Please select one:',
+			message: 'The following cars are available in your area. Please select one:',
 			choices: choices
 		}
 		], function(answer) {
 			var index = choices.indexOf(answer.vehicle);
 			var productID = vehicles.products[index].product_id;
-			callback(null, productID);
+			callback(null, productID, answer.vehicle);
 		});
 	},
-	// confirm request of selected car
-	function(productID, callback) {
-		console.log(productID);
+	// ask for destination address
+	function(productID, vehicle, callback) {
+		var car = vehicle.split('  -  ')[0];
+		inquirer.prompt([
+			{
+				type: 'input',
+				name: 'destination',
+				message: 'Please enter the destination you\'d like your ' + car + ' to take you to:'
+			}
+		], function(answer) {
+			callback(null, answer.destination);
+		});
+	},
+	// find coordinates of address
+	function(destination, callback) {
+		
 	}
 ], function(err, result) {
 	console.log(result);
