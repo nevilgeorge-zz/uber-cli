@@ -76,7 +76,6 @@ function writeToFile(answers) {
 // handle authentication using node-uber API wrapper
 function handleAuthentication() {
 	var authUrl = uber.getAuthorizeUrl(['request']);
-	console.log(authUrl);
 	open(authUrl);
 }
 
@@ -105,71 +104,90 @@ program
 	.option('-d, --destination <dest>', 'Destination address. ' + emphasize('Make sure it\'s enclosed by ""!'))
 	.parse(process.argv);
 
-// if (!doesFileExist()) {
-// 	inquirer.prompt(loginList, function(answer) {
-// 		if (answer.authMethod === 'Email') {
-// 			inquirer.prompt(questions, function(answers) {
-// 				var obj = answers;
-// 				handleAuthentication();
-// 				inquirer.prompt(authList, function(answer) {
-// 					var tokens = handleAuthorization(answer.authCode, function(result) {
-// 						var objToWrite = _.extend(obj, result);
-// 						console.log(objToWrite);
-// 						writeToFile(objToWrite);
-// 					});
-// 				});
-// 			});
-// 		}
-// 	});
-// } else {
-// 	readFromFile();
-// }
-
-var authMethod;
-var resultObj = {};
-if (!doesFileExist()) {
-	async.series([
-		function(callback) {
-			inquirer.prompt(loginList, function(answer) {
-				authMethod = answer.authMethod;
-				callback(null, authMethod);
-			});
-		},
-		function(callback) {
-			if (authMethod === 'Email') {
-				inquirer.prompt(questions, function(answers) {
-					resultObj = _.extend(resultObj, answers);
-					callback(null, answers);
-				});
-			} else {
-				callback(null, null);
-			}
-		},
-		function(callback) {
-			handleAuthentication();
-			callback(null, 0);
-		},
-		function(callback) {
-			inquirer.prompt(authList, function(answer) {
-				var tokens = handleAuthorization(answer.authCode, function(result) {
-					resultObj = _.extend(resultObj, result);
-					writeToFile(resultObj);
-					callback(null, resultObj);
-				});
-			});
-		}
-	], function(err, results) {
-		if (err) {
-			console.log(err);
+async.waterfall([
+	// check for uberconfig file and ask for email address if no file exists
+	function(callback) {
+		if (!doesFileExist()) {
+			inquirer.prompt(questions, function(answers) {
+				var details = answers;
+				callback(null, details);
+			})
 		} else {
-			console.log(results);
+			callback(null, null);
 		}
-	});
-} else {
-	readFromFile();
-}
-
-setTimeout(function(){}, 1000);
-
-
-
+	},
+	// sends authentication code and also obtains access token and refresh token
+	function(details, callback) {
+		if (details) {
+			handleAuthentication();
+			inquirer.prompt(authList, function(answer) {
+				handleAuthorization(answer.authCode, function(tokens) {
+					var result = _.extend(details, tokens);
+					writeToFile(result);
+					callback(null);
+				});
+			});
+		} else {
+			callback(null);
+		}
+	},
+	// get location coordinates
+	function(callback) {
+		request.get('http://ipinfo.io', function(err, response, data) {
+			var result = JSON.parse(data);
+			var strings = result.loc.split(',');
+			var position = {
+				latitude: strings[0],
+				longitude: strings[1]
+			};
+			callback(null, position);
+		});
+	},
+	// get products available at location
+	function(position, callback) {
+		var options = {
+			url: 'https://api.uber.com/v1/products?latitude=37.7759792&longitude=-122.41823',
+			headers: {
+				'Authorization': 'Token ' + auth.server_token
+			}
+		};
+		request(options, function(error, response, body) {
+			var results = JSON.parse(body);
+			callback(null, results);
+		});
+	},
+	// parse products into choices
+	function(vehicles, callback) {
+		var string, item,
+			choices = [];
+		for (var i = 0; i < vehicles.products.length; i++) {
+			item = vehicles.products[i];
+			string = item.display_name + '  -  ' + 'Seats ' + item.capacity + ' people' +
+				'  -  ' + item.description;
+			choices.push(string);
+			//choices.push(new inquirer.Separator());
+		}
+		callback(null, choices, vehicles);
+	},
+	// display choices and wait for user to select
+	function(choices, vehicles, callback) {
+		inquirer.prompt([
+		{
+			type: 'list',
+			name: 'vehicle',
+			message: 'The following cars are in your area. Please select one:',
+			choices: choices
+		}
+		], function(answer) {
+			var index = choices.indexOf(answer.vehicle);
+			var productID = vehicles.products[index].product_id;
+			callback(null, productID);
+		});
+	},
+	// confirm request of selected car
+	function(productID, callback) {
+		console.log(productID);
+	}
+], function(err, result) {
+	console.log(result);
+});
