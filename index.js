@@ -13,7 +13,9 @@ var program = require('commander'),
 	open = require('open'),
 	_ = require('underscore'),
 	auth = require(path.join(__dirname, 'auth.js')),
-	async = require('async');
+	async = require('async'),
+	geocoder = require('node-geocoder')('google', 'http'),
+	geolib = require('geolib');
 
 // variables
 var emphasize = chalk.green.bgBlue;
@@ -94,6 +96,29 @@ function handleAuthorization(code, callback) {
 	});
 }
 
+function findClosestLocation(array, location) {
+	var item, temp, l1, l2,
+		minItem = array[0],
+		minimum = 10000000;
+	for (var i = 0; i < array.length; i++) {
+		item = array[i];
+		l1 = {
+			latitude: item.latitude,
+			longitude: item.longitude
+		};
+		l2 = {
+			latitude: location.latitude,
+			longitude: location.longitude
+		};
+		temp = geolib.getDistance(l1, l2);
+		if (temp < minimum) {
+			minimum = temp;
+			minItem = item;
+		}
+	}
+	return minItem;
+}
+
 program
 	.version(pkg.version)
 	.option('-t, --type <type>', 'Type of car you\'d like to request. ' + emphasize('Options: x, taxi, select, black'))
@@ -101,6 +126,7 @@ program
 	.option('-d, --destination <dest>', 'Destination address. ' + emphasize('Make sure it\'s enclosed by ""!'))
 	.parse(process.argv);
 
+var location;
 async.waterfall([
 	// check for uberconfig file and ask for email address if no file exists
 	function(callback) {
@@ -135,8 +161,11 @@ async.waterfall([
 			var strings = result.loc.split(',');
 			var position = {
 				latitude: strings[0],
-				longitude: strings[1]
+				longitude: strings[1],
+				city: result.city,
+				state: result.region
 			};
+			location = position;
 			callback(null, position);
 		});
 	},
@@ -196,7 +225,22 @@ async.waterfall([
 	},
 	// find coordinates of address
 	function(destination, callback) {
-		
+		geocoder.geocode(destination, function(err, res) {
+			if (err) {
+				console.log(err);
+				callback(null, null);
+			} else {
+				if (res.length === 1) {
+					callback(null, res[0])
+				} else {
+					var correctLocation = findClosestLocation(res, location);
+					callback(null, correctLocation);
+				}
+			}
+		});
+	},
+	function(loc, callback) {
+		console.log(loc);
 	}
 ], function(err, result) {
 	console.log(result);
