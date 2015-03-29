@@ -12,7 +12,8 @@ var program = require('commander'),
 	Uber = require('node-uber'),
 	open = require('open'),
 	_ = require('underscore'),
-	auth = require(path.join(__dirname, 'auth.js'));
+	auth = require(path.join(__dirname, 'auth.js')),
+	async = require('async');
 
 // variables
 var emphasize = chalk.green.bgBlue;
@@ -75,6 +76,7 @@ function writeToFile(answers) {
 // handle authentication using node-uber API wrapper
 function handleAuthentication() {
 	var authUrl = uber.getAuthorizeUrl(['request']);
+	console.log(authUrl);
 	open(authUrl);
 }
 
@@ -92,9 +94,9 @@ function handleAuthorization(code, callback) {
 	});
 }
 
-// uber.authorization(['profile'], function(data) {
-// 	// console.log(data);
-// });
+function requestRide() {
+	request.get('https://sandbox-api.uber.com/v1/requests?latitude=42.0586&longitude=-87.6845')
+}
 
 program
 	.version(pkg.version)
@@ -103,23 +105,71 @@ program
 	.option('-d, --destination <dest>', 'Destination address. ' + emphasize('Make sure it\'s enclosed by ""!'))
 	.parse(process.argv);
 
+// if (!doesFileExist()) {
+// 	inquirer.prompt(loginList, function(answer) {
+// 		if (answer.authMethod === 'Email') {
+// 			inquirer.prompt(questions, function(answers) {
+// 				var obj = answers;
+// 				handleAuthentication();
+// 				inquirer.prompt(authList, function(answer) {
+// 					var tokens = handleAuthorization(answer.authCode, function(result) {
+// 						var objToWrite = _.extend(obj, result);
+// 						console.log(objToWrite);
+// 						writeToFile(objToWrite);
+// 					});
+// 				});
+// 			});
+// 		}
+// 	});
+// } else {
+// 	readFromFile();
+// }
+
+var authMethod;
+var resultObj = {};
 if (!doesFileExist()) {
-	inquirer.prompt(loginList, function(answer) {
-		if (answer.authMethod === 'Email') {
-			inquirer.prompt(questions, function(answers) {
-				var obj = answers;
-				handleAuthentication();
-				inquirer.prompt(authList, function(answer) {
-					var tokens = handleAuthorization(answer.authCode, function(result) {
-						var objToWrite = _.extend(obj, result);
-						console.log(objToWrite);
-						writeToFile(objToWrite);
-					});
+	async.series([
+		function(callback) {
+			inquirer.prompt(loginList, function(answer) {
+				authMethod = answer.authMethod;
+				callback(null, authMethod);
+			});
+		},
+		function(callback) {
+			if (authMethod === 'Email') {
+				inquirer.prompt(questions, function(answers) {
+					resultObj = _.extend(resultObj, answers);
+					callback(null, answers);
+				});
+			} else {
+				callback(null, null);
+			}
+		},
+		function(callback) {
+			handleAuthentication();
+			callback(null, 0);
+		},
+		function(callback) {
+			inquirer.prompt(authList, function(answer) {
+				var tokens = handleAuthorization(answer.authCode, function(result) {
+					resultObj = _.extend(resultObj, result);
+					writeToFile(resultObj);
+					callback(null, resultObj);
 				});
 			});
+		}
+	], function(err, results) {
+		if (err) {
+			console.log(err);
+		} else {
+			console.log(results);
 		}
 	});
 } else {
 	readFromFile();
 }
+
+setTimeout(function(){}, 1000);
+
+
 
